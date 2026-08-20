@@ -27,6 +27,14 @@ retry_button = pygame.image.load("retry.png")
 bg_1 = pygame.image.load("bg_1.png")
 evil_img = pygame.image.load("evil.png")
 evil_img = pygame.transform.scale(evil_img, (180,180))
+Start_size = (200 , 60)
+Start_hover_size = (250,80)
+start_btn_original = pygame.image.load("start.png")
+start_btn = pygame.transform.scale(start_btn_original,Start_size)
+
+start_menu = pygame.image.load("start_m.png")
+start_menu = pygame.transform.scale(start_menu, (1200,700))
+
 evils = []
 last_evil_spawn = pygame.time.get_ticks()
 
@@ -87,10 +95,13 @@ score = 0
 shake_timer = 0
 shake_intensity = 0
 
+in_start = True
+
+
 def reset_game():
   global score, health, player_pos, move_speed, y_velocity, is_jumping
   global target_x, target_y, target_y_velocity, game_over
-  global evil, last_evil_spawn
+  global evil, last_evil_spawn, in_start, value, animation_timer
   score=0
   health=3
   player_pos= pygame.Vector2(SCREEN_WIDTH/2,SCREEN_HEIGHT/2)
@@ -103,6 +114,7 @@ def reset_game():
   current_target_sprite = random.randint(0, len(target_sprites)-1)
   last_evil_spawn = pygame.time.get_ticks()
   game_over=False
+  in_start = False
 
 
 
@@ -156,14 +168,18 @@ if not paused and not game_over:
   pygame.mixer.music.play(loops=-1, start=0.0)
 
 while running:
+  start_btn_rect = start_btn.get_rect(
+    center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2+50)
+  )
+  retry_rect = retry_button.get_rect(
+      center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT//2 + 50)
+  )
   if not paused and not game_over:
     current_time = pygame.time.get_ticks()
 
   
   render_offset = [0, 0]
-  retry_rect = retry_button.get_rect(
-    center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT//2 + 50)
-  )
+  
 
   for event in pygame.event.get():
     if event.type == pygame.QUIT:
@@ -177,6 +193,25 @@ while running:
     if event.type == pygame.MOUSEBUTTONDOWN and game_over:
       if retry_rect.collidepoint(event.pos):
         reset_game()
+    if event.type == pygame.MOUSEBUTTONDOWN and in_start:
+      if start_btn_rect.collidepoint(event.pos):
+        reset_game()
+
+  if in_start:
+    mouse_pos = pygame.mouse.get_pos()
+    display_buffer.blit(start_menu, (0,0))
+    if start_btn_rect.collidepoint(mouse_pos):
+      hover_btn = pygame.transform.scale(
+        start_btn_original, Start_hover_size
+      )
+      hover_rect = hover_btn.get_rect(center=start_btn_rect.center)
+      display_buffer.blit(hover_btn, hover_rect)
+    else:
+      display_buffer.blit(start_btn, start_btn_rect)
+    screen.blit(display_buffer, (0,0))
+    pygame.display.flip()
+    clock.tick(60)
+    continue
 
   if current_time - last_evil_spawn >= 3000:
     
