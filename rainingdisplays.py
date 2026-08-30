@@ -1,15 +1,19 @@
 import random
 import sys
 import pygame
+import os
 
 pygame.init()
 SCREEN_WIDTH = 1200
 SCREEN_HEIGHT = 700
 
-#Importing assets section (memory go brr)
 
+#Importing assets section (memory go brr)
+idle_boy = [
+  pygame.image.load("boy1.png"),
+  pygame.image.load("boy1_1.png"),
+]
 image_sprite = [
-    pygame.image.load("boy1.png"),
     pygame.image.load("boy2.png"),
     pygame.image.load("boy3.png"),
 ]
@@ -19,6 +23,13 @@ target_sprites = [
     pygame.transform.scale(pygame.image.load("itm3.png"), (40,40)),
 ]
 current_target_sprite = random.randint(0, len(target_sprites)-1)
+start_menu_sprites = [
+  pygame.transform.scale(pygame.image.load("start_m.png"), (1200,700)),
+  pygame.transform.scale(pygame.image.load("start_m1.png"), (1200,700)),
+]
+
+start_menu_index = 0
+start_menu_timer = 0
 
 macondo = pygame.image.load("macondo.png")
 heart_red = pygame.image.load("heart_r.png")
@@ -32,11 +43,11 @@ Start_hover_size = (250,80)
 start_btn_original = pygame.image.load("start.png")
 start_btn = pygame.transform.scale(start_btn_original,Start_size)
 
-start_menu = pygame.image.load("start_m.png")
-start_menu = pygame.transform.scale(start_menu, (1200,700))
 
 evils = []
 last_evil_spawn = pygame.time.get_ticks()
+
+
 
 
 
@@ -95,13 +106,38 @@ score = 0
 shake_timer = 0
 shake_intensity = 0
 
+
 in_start = True
+
+is_new_highscore  = False
+highscore_message_until = 0
+
+
+def load_highscore():
+  if os.path.exists("highscore.txt"):
+    try:
+      with open("highscore.txt", "r") as file:
+        return int(file.read())
+    except ValueError:
+      return 0
+    return 0
+
+high_score = load_highscore()
+
+
+def save_highscore(new_high_score):
+    with open("highscore.txt", "w") as file:
+      file.write(str(new_high_score))
+
+
+
 
 
 def reset_game():
   global score, health, player_pos, move_speed, y_velocity, is_jumping
   global target_x, target_y, target_y_velocity, game_over
   global evil, last_evil_spawn, in_start, value, animation_timer
+  global current_target_sprite, is_new_highscore, highscore_message_until
   score=0
   health=3
   player_pos= pygame.Vector2(SCREEN_WIDTH/2,SCREEN_HEIGHT/2)
@@ -115,6 +151,11 @@ def reset_game():
   last_evil_spawn = pygame.time.get_ticks()
   game_over=False
   in_start = False
+  is_new_highscore = False
+  highscore_message_until = 0
+  start_menu_index=0
+  start_menu_timer=0
+  
 
 
 
@@ -198,8 +239,15 @@ while running:
         reset_game()
 
   if in_start:
+
+    start_menu_timer += 1
+    if start_menu_timer >=20:
+      start_menu_index=(start_menu_index+1) % len(start_menu_sprites)
+      start_menu_timer=0
+    current_start_bg= start_menu_sprites[start_menu_index]
+    display_buffer.blit(current_start_bg, (0,0))
+
     mouse_pos = pygame.mouse.get_pos()
-    display_buffer.blit(start_menu, (0,0))
     if start_btn_rect.collidepoint(mouse_pos):
       hover_btn = pygame.transform.scale(
         start_btn_original, Start_hover_size
@@ -208,9 +256,18 @@ while running:
       display_buffer.blit(hover_btn, hover_rect)
     else:
       display_buffer.blit(start_btn, start_btn_rect)
+
+    menu_highscore_surf = font.render(
+      f"High Score: {high_score}", True, (255,255,255)
+
+    )
+    menu_highscore_rect = menu_highscore_surf.get_rect(
+      center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 120)
+    )
+    display_buffer.blit(menu_highscore_surf, menu_highscore_rect)
     screen.blit(display_buffer, (0,0))
     pygame.display.flip()
-    clock.tick(60)
+    dt = clock.tick(60) / 1000
     continue
 
   if current_time - last_evil_spawn >= 3000:
@@ -239,7 +296,7 @@ while running:
     if (
         keys[pygame.K_SPACE]
         and not is_jumping
-        and player_pos.y >= (SCREEN_HEIGHT - player_half_height - 2)
+        and player_pos.y >= (SCREEN_HEIGHT - player_half_height - 2) #Makes the player jump by changeing
     ):
       y_velocity = -jump_strength
       jump.set_volume(0.5)
@@ -268,7 +325,7 @@ while running:
 
     move_speed = max(-maxspeed, min(move_speed, maxspeed))
     player_pos.x += move_speed * dt
-
+    
     if moving:
       animation_timer += 1
       if animation_timer >= 12:
@@ -319,6 +376,14 @@ while running:
       collect.set_volume(0.5)
       collect.play()
       score += 1
+      if score > high_score:
+        high_score = score
+        save_highscore(high_score)
+        is_new_highscore = True
+        highscore_message_until = pygame.time.get_ticks() + 3000
+
+
+      
       target_y_velocity = 0
       target_x = random.randint(50, SCREEN_WIDTH - 50)
       target_y = 50
@@ -371,6 +436,19 @@ while running:
 
   display_buffer.blit(score_surface, (20, 20))
 
+  if is_new_highscore and pygame.time.get_ticks() >= highscore_message_until:
+    is_new_highscore = False
+
+  if is_new_highscore:
+    new_score_surf = font.render(
+      "New high score!", True, (212, 175,55)
+    )
+    new_score_rect = new_score_surf.get_rect(
+      center=(SCREEN_WIDTH//2,SCREEN_HEIGHT//2 - 20)
+    )
+    display_buffer.blit(new_score_surf, new_score_rect)
+    display_buffer.blit(retry_button,retry_rect)
+
   screen.blit(display_buffer, render_offset)
 
   if paused and not game_over:
@@ -403,7 +481,12 @@ while running:
     screen.blit(overlay, (0, 0))
 
     game_over_surface = game_over_font.render("GAME OVER", True, (255, 50, 50))
-    final_score_surface = font.render(f"Final Score: {score}", True, (255, 255, 255))
+    final_score_surface = font.render(
+      f"Final Score: {score}", True, (255,255,255)
+    )
+    gameover_highscore_surf = font.render(
+      f"High Score: {high_score}", True, (255,215,0) #Gollddd because highscore = pretty
+    )
 
     screen.blit(
       game_over_surface,
@@ -420,7 +503,6 @@ while running:
       ),
     )
     screen.blit(retry_button, retry_rect)
-
   pygame.display.flip()
   dt = clock.tick(60) / 1000
 
