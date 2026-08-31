@@ -7,6 +7,11 @@ pygame.init()
 SCREEN_WIDTH = 1200
 SCREEN_HEIGHT = 700
 
+bottom_y = SCREEN_HEIGHT - 100
+
+btn_size = (220,70)
+
+
 
 #Importing assets section (memory go brr)
 idle_boy = [
@@ -30,11 +35,27 @@ start_menu_sprites = [
 
 start_menu_index = 0
 start_menu_timer = 0
+speed_btn =pygame.transform.scale(
+     pygame.image.load("speed.png"), btn_size
+)
 
+jump_btn = pygame.transform.scale(
+    pygame.image.load("jump.png"), btn_size
+)
+
+multiplier_btn = pygame.transform.scale(
+    pygame.image.load("rate.png"), btn_size
+)
 macondo = pygame.image.load("macondo.png")
 heart_red = pygame.image.load("heart_r.png")
 heart_grey = pygame.image.load("heaart_g.png")
 retry_button = pygame.image.load("retry.png")
+lvl_up_image = pygame.image.load("level_up.png")
+lvl_up_image = pygame.transform.scale(lvl_up_image, (400,100))
+
+banner_timer = 0
+banner_duration = 1000
+banner_flash_interval = 200
 
 bg_1 = pygame.image.load("bg_1.png")
 bg_2 = pygame.image.load("bg_2.png")
@@ -66,6 +87,9 @@ hurt = pygame.mixer.Sound("Hurt.wav")
 
 
 
+speed_btn_rect = speed_btn.get_rect(center = (SCREEN_WIDTH//4, bottom_y))
+jump_btn_rect =jump_btn.get_rect(center= (SCREEN_WIDTH//2, bottom_y))
+multiplier_btn_rect = multiplier_btn.get_rect(center= (3 *SCREEN_WIDTH//4, bottom_y))
 
 
 
@@ -78,7 +102,7 @@ splash_font = pygame.font.Font("Pixel.ttf", 50)
 font = pygame.font.Font("Pixel.ttf", 36)
 pause_font = pygame.font.Font("Pixel.ttf", 64)
 game_over_font = pygame.font.Font("Pixel.ttf", 80)
-
+small_font = pygame.font.Font("Pixel.ttf", 14)
 
 
 
@@ -92,6 +116,7 @@ radius = 40
 player_pos = pygame.Vector2(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
 move_speed = 0
 acceleration = 1400
+base_maxspeed = 800
 maxspeed = 800
 friction = 2000
 health = 3
@@ -99,6 +124,7 @@ health = 3
 y_velocity = 0
 gravity = 0.8
 jump_strength = 20
+base_jump_strength= 20
 is_jumping = False
 
 target_x = random.randint(50, SCREEN_WIDTH - 50)
@@ -115,12 +141,13 @@ shake_intensity = 0
 
 
 in_start = True
-
+in_shop = False
 is_new_highscore  = False
 highscore_message_until = 0
 
 current_level = 1
-
+upgrades = {"speed":1, "jump":1, "spawn":1}
+total_coins = 0
 
 def load_highscore():
   if os.path.exists("highscore.txt"):
@@ -131,14 +158,63 @@ def load_highscore():
       return 0
     return 0
 
-high_score = load_highscore()
+
 
 
 def save_highscore(new_high_score):
     with open("highscore.txt", "w") as file:
       file.write(str(new_high_score))
 
+def load_points():
+  if os.path.exists("points.txt"):
+    try:
+      with open("points.txt","r") as file:
+        return int(file.read())
+    except ValueError:
+      return 0
+  return 0
 
+def save_points(amount):
+  with open("points.txt", "w")as file:
+    file.write(str(amount))
+
+def load_upgrades():
+  if os.path.exists("upgrades.txt"):
+    try:
+      with open("upgrades.txt","r") as file:
+        lines = file.readlines
+        return{
+          "speed": int(lines[0].strip()),
+          "jump": int(lines[1].strip()),
+          "spawn": int(lines[2].strip()),
+        }
+    except Exception:
+      return{"speed": 1, "jump":1, "spawn":1}
+    return{"speed": 1, "jump":1, "spawn":1}
+
+def save_upgrades():
+  with open("upgrades.txt", "w") as file:
+    file.write(f"{upgrades['speed']}\n{upgrades['jump']}\n{upgrades['spawn']}")
+
+high_score = load_highscore()
+total_coins = load_points()
+upgrades=load_upgrades()
+
+def get_upgrade_cost(level):
+  return int(15 * (1.5 **(level-1)))
+
+def apply_upgrades():
+  global maxspeed, jump_strength
+  maxspeed = base_maxspeed + (upgrades["speed"]-1)*26.6 #The max speed can be 1040 compared to the 800 base speed (idk if this is baldanced buuuut...)
+  jump_strength = base_jump_strength+(upgrades["jump"]-1)*0.555 #Same thing here max move speed is 25 compared to 20
+
+def spawn_single_target():
+  return{
+    "x": random.randint(50, SCREEN_WIDTH-50),
+    "y": 50,
+    "y_vel": 0,
+    "sprite_idx": random.randint(0, len(target_sprites)-1) #used for storing which item image is spawned
+  }
 
 
 
@@ -153,21 +229,29 @@ def reset_game():
   move_speed=0
   y_velocity=0
   is_jumping = False
-  target_x = random.randint(50, SCREEN_WIDTH-50)
-  target_y = 50
-  target_y_velocity=0
-  current_target_sprite = random.randint(0, len(target_sprites)-1)
+  target_count = 1 + (upgrades["spawn"]-1)//4
+  active_targets = [spawn_single_target() for _ in range(target_count)]
+  evils.clear
+ 
   last_evil_spawn = pygame.time.get_ticks()
   game_over=False
   in_start = False
+  in_start = False
+  in_shop = False
   is_new_highscore = False
   current_level = 1
   start_menu_index=0
   start_menu_timer=0
   current_level = 1
   playing_track = None  # keeps track of what song is currently loaded
+  banner_timer = 0
   
-
+def return_to_main_menu():
+  global in_start, game_over, in_shop, playing_track
+  in_start = True
+  game_over = False
+  in_shop = False
+  playing_track=None
 
 
 def trigger_shake(duration_frames, intensity):
@@ -178,6 +262,8 @@ def trigger_shake(duration_frames, intensity):
 
 paused = False
 game_over = False
+
+
 
 
 def shows_splash_screen(splash_duration):
@@ -223,8 +309,14 @@ while running:
   start_btn_rect = start_btn.get_rect(
     center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2+50)
   )
+  shop_btn_rect = pygame.Rect(
+    SCREEN_WIDTH//2+20, SCREEN_HEIGHT//2 +20, 200,60
+  )
   retry_rect = retry_button.get_rect(
       center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT//2 + 50)
+  )
+  menu_rect = pygame.Rect(
+    SCREEN_WIDTH // 2 + 20, SCREEN_HEIGHT//2 +50, 200,60
   )
   if not paused and not game_over:
     current_time = pygame.time.get_ticks()
@@ -240,14 +332,94 @@ while running:
             and not game_over
       ):
         paused = not paused
-    if event.type == pygame.MOUSEBUTTONDOWN and game_over:
-      if retry_rect.collidepoint(event.pos):
-        reset_game()
-    if event.type == pygame.MOUSEBUTTONDOWN and in_start:
-      if start_btn_rect.collidepoint(event.pos):
-        reset_game()
+    if event.type == pygame.MOUSEBUTTONDOWN:
+      if in_start and not in_shop:
+        if start_btn_rect.collidepoint(event.pos):
+          reset_game()
+        elif shop_btn_rect.collidepoint(event.pos):
+          in_shop = True
 
-  if in_start:
+      elif in_shop:
+        back_btn_rect = pygame.Rect(50,50,140,50)
+        if back_btn_rect.collidepoint(event.pos):
+          in_shop=False
+
+        speed_btn = pygame.Rect(SCREEN_WIDTH//2 +150, 200, 160, 50)
+        jump_btn = pygame.Rect(SCREEN_WIDTH//2 + 150, 310, 160, 50)
+        multiplier_btn = pygame.Rect(SCREEN_WIDTH//2+150,420,160,50)
+
+        if speed_btn_rect.collidepoint(event.pos) and upgrades["speed"] < 10:
+          cost = get_upgrade_cost(upgrades["speed"])
+          if total_coins >= cost:
+            total_coins -= cost
+            upgrades["speed"]+=1
+            save_points(total_coins)
+            save_upgrades()
+
+        elif jump_btn_rect.collidepoint(event.pos) and upgrades["jump"] < 10:
+          cost = get_upgrade_cost(upgrades["jump"])
+          if total_coins >= cost:
+            total_coins -= cost
+            save_points(total_coins)
+            save_upgrades()
+
+        elif multiplier_btn_rect.collidepoint(event.pos) and upgrades["spawn"] < 10:
+          cost = get_upgrade_cost(upgrades["spawn"])
+          if total_coins >= cost:
+            total_coins -= cost
+            save_points(total_coins)
+            save_upgrades()
+      elif game_over:
+        if retry_rect.collidepoint(event.pos):
+          reset_game()
+        elif menu_rect.collidepoint(event.pos):
+          return_to_main_menu
+
+  if in_shop:
+    display_buffer.fill((20,20,35))
+    shop_title= font.render( "UPGRADES SHOP", True, (255,215,0)) #Gold because macondo
+    coins_surf = font.render(f"Coins: {total_coins}", True, (255,255,255))
+    display_buffer.blit(shop_title, (SCREEN_WIDTH//2-130,40))
+    display_buffer.blit(coins_surf, (SCREEN_WIDTH-250,40))
+    
+
+    back_btn = pygame.Rect(50,50,140,50)
+    pygame.draw.rect(display_buffer, (180,50,50), back_btn, border_radius=10)
+    display_buffer.blit(font.render("BACK",True,(255,255,255)), (75,57))
+
+    categories = [
+      ("Speed", "speed", 200),
+      ("Jump Power", "jump", 310),
+      ("Item Spawn", "item", 420),
+    ]
+
+    for label,key,y_pos in categories:
+      lvl = upgrades[key]
+      cost = get_upgrade_cost(lvl)
+
+      txt = font.render(f"{label} (Lvl {lvl}/10)", True,(255,255,255))
+      display_buffer.blit(txt, (150, y_pos +10))
+
+      buy_btn = pygame.Rect(SCREEN_WIDTH//2+150, y_pos, 160,50)
+
+      if lvl >=10:
+        pygame.draw.rect(display_buffer, (80,80,80), buy_btn, border_radius=8)
+        btn_txt = small_font.render("MAXED", True, (128, 0, 32))
+        display_buffer.blit(btn_txt,(buy_btn.x + 40, buy_btn.y+13))
+      else:
+        btn_color =((40,180,40) if total_coins >= cost else (100,100,100))
+        pygame.draw.rect(display_buffer, btn_color, buy_btn, border_radius=8 )
+        btn_text = small_font.render(f"Buy: {cost}C", True,(255,255,255))
+        display_buffer.blit(btn_txt, (buy_btn.x + 20, buy_btn.y +13))
+
+    screen.blit(display_buffer, (0,0))
+    pygame.display.flip()
+    dt = clock.tick(60)/1000
+    continue
+
+
+
+  
 
     
 
@@ -401,8 +573,13 @@ while running:
       collect.set_volume(0.5)
       collect.play()
       score += 1
+      new_level = current_level
       if score>=20:
-        current_level=2
+        new_level=2
+
+      if new_level >current_level:
+        current_level = new_level
+        banner_timer = pygame.time.get_ticks()
       
       if score > high_score:
         high_score = score
@@ -464,6 +641,18 @@ while running:
 
 
   display_buffer.blit(score_surface, (20, 20))
+
+  if banner_timer > 0:
+    elapsed = pygame.time.get_ticks() - banner_timer
+    if elapsed <= banner_duration:
+      if (elapsed//banner_flash_interval) % 2 == 0:
+        banner_rect = lvl_up_image.get_rect(center=(SCREEN_WIDTH//2, 180))
+        display_buffer.blit(lvl_up_image,banner_rect)
+    else:
+      banner_timer = 0 
+    
+  
+
 
   
 
