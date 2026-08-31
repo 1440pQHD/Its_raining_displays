@@ -35,7 +35,10 @@ macondo = pygame.image.load("macondo.png")
 heart_red = pygame.image.load("heart_r.png")
 heart_grey = pygame.image.load("heaart_g.png")
 retry_button = pygame.image.load("retry.png")
+
 bg_1 = pygame.image.load("bg_1.png")
+bg_2 = pygame.image.load("bg_2.png")
+
 evil_img = pygame.image.load("evil.png")
 evil_img = pygame.transform.scale(evil_img, (180,180))
 Start_size = (200 , 60)
@@ -56,8 +59,10 @@ heart_red = pygame.transform.scale(heart_red, (40,40))
 heart_grey = pygame.transform.scale(heart_grey, (40,40))
 retry_button = pygame.transform.scale(retry_button, (250, 80))
 bg_1 = pygame.transform.scale(bg_1, (SCREEN_WIDTH, SCREEN_HEIGHT))
+bg_2 = pygame.transform.scale(bg_2, (SCREEN_WIDTH, SCREEN_HEIGHT))
 jump= pygame.mixer.Sound("Jump.wav")
 collect= pygame.mixer.Sound("Collect.wav")
+hurt = pygame.mixer.Sound("Hurt.wav")
 
 
 
@@ -102,6 +107,8 @@ target_size = 40
 target_y_velocity = 0
 target_gravity = 0.2
 score = 0
+current_level = 1
+playing_track = None  # Keeps track of what song is currently loaded
 
 shake_timer = 0
 shake_intensity = 0
@@ -111,6 +118,8 @@ in_start = True
 
 is_new_highscore  = False
 highscore_message_until = 0
+
+current_level = 1
 
 
 def load_highscore():
@@ -152,9 +161,11 @@ def reset_game():
   game_over=False
   in_start = False
   is_new_highscore = False
-  highscore_message_until = 0
+  current_level = 1
   start_menu_index=0
   start_menu_timer=0
+  current_level = 1
+  playing_track = None  # keeps track of what song is currently loaded
   
 
 
@@ -203,10 +214,10 @@ def shows_splash_screen(splash_duration):
 
 shows_splash_screen(3000)
 
-pygame.mixer.music.load("bg1.mp3")
+pygame.mixer.music.load("start_m.mp3")
 pygame.mixer.music.set_volume(0.3)
-if not paused and not game_over:
-  pygame.mixer.music.play(loops=-1, start=0.0)
+pygame.mixer.music.play(loops=-1, start=0.0)
+playing_track = "start_m.mp3"
 
 while running:
   start_btn_rect = start_btn.get_rect(
@@ -218,9 +229,7 @@ while running:
   if not paused and not game_over:
     current_time = pygame.time.get_ticks()
 
-  
   render_offset = [0, 0]
-  
 
   for event in pygame.event.get():
     if event.type == pygame.QUIT:
@@ -239,6 +248,9 @@ while running:
         reset_game()
 
   if in_start:
+
+    
+
 
     start_menu_timer += 1
     if start_menu_timer >=20:
@@ -283,10 +295,23 @@ while running:
     pygame.mixer.music.unpause()
   
   display_buffer.fill("purple")
-  display_buffer.blit(bg_1, (0, 0))
+  if current_level == 1:
+    display_buffer.blit(bg_1, (0, 0))
+  elif current_level == 2:
+    display_buffer.blit(bg_2, (0,0))
+  
   
 
   if not paused and not game_over:
+    current_track = f"bg_{current_level}.mp3"
+    if playing_track != current_track:
+      pygame.mixer.music.load(current_track)
+      pygame.mixer.music.set_volume(0.3)
+      pygame.mixer.music.play(loops=-1, start=0.0)
+      playing_track = current_track
+    
+      
+    
     keys = pygame.key.get_pressed()
 
     image = image_sprite[value]
@@ -376,11 +401,13 @@ while running:
       collect.set_volume(0.5)
       collect.play()
       score += 1
+      if score>=20:
+        current_level=2
+      
       if score > high_score:
         high_score = score
-        save_highscore(high_score)
+        save_highscore(high_score) #Calling the save_highscore function to save current highscore to highscore.txt
         is_new_highscore = True
-        highscore_message_until = pygame.time.get_ticks() + 3000
 
 
       
@@ -392,9 +419,11 @@ while running:
       evil["y_vel"] += 0.4
       evil["y"] += evil["y_vel"]
 
-      evil_rect = pygame.Rect(evil["x"], evil["y"], 50,50)
+      evil_rect = pygame.Rect(evil["x"], evil["y"], 80,80)
 
       if player_rect.colliderect(evil_rect):
+        hurt.set_volume(0.5)
+        hurt.play()
         trigger_shake(12, 6)
         health -= 1
         evils.remove(evil)
@@ -436,18 +465,7 @@ while running:
 
   display_buffer.blit(score_surface, (20, 20))
 
-  if is_new_highscore and pygame.time.get_ticks() >= highscore_message_until:
-    is_new_highscore = False
-
-  if is_new_highscore:
-    new_score_surf = font.render(
-      "New high score!", True, (212, 175,55)
-    )
-    new_score_rect = new_score_surf.get_rect(
-      center=(SCREEN_WIDTH//2,SCREEN_HEIGHT//2 - 20)
-    )
-    display_buffer.blit(new_score_surf, new_score_rect)
-    display_buffer.blit(retry_button,retry_rect)
+  
 
   screen.blit(display_buffer, render_offset)
 
@@ -481,12 +499,8 @@ while running:
     screen.blit(overlay, (0, 0))
 
     game_over_surface = game_over_font.render("GAME OVER", True, (255, 50, 50))
-    final_score_surface = font.render(
-      f"Final Score: {score}", True, (255,255,255)
-    )
-    gameover_highscore_surf = font.render(
-      f"High Score: {high_score}", True, (255,215,0) #Gollddd because highscore = pretty
-    )
+    final_score_surface = font.render(f"Final Score: {score}", True, (255,255,255))
+    
 
     screen.blit(
       game_over_surface,
@@ -502,6 +516,19 @@ while running:
         SCREEN_HEIGHT // 2 - 40,
       ),
     )
+    if is_new_highscore:
+      new_highscore_surf = font.render("NEW HIGH SCORE", True, (255, 215, 0))
+      screen.blit(
+        new_highscore_surf,
+        (SCREEN_WIDTH//2 - new_highscore_surf.get_width()//2, SCREEN_HEIGHT// 2 +100),
+
+      )
+    else:
+      gameover_highscore_surf = font.render(f"CURRENT HIGHSCORE: {high_score}", True, (200,200,200))
+      screen.blit(
+        gameover_highscore_surf,
+        (SCREEN_WIDTH//2 - gameover_highscore_surf.get_width() // 2, SCREEN_HEIGHT//2+100),
+      )
     screen.blit(retry_button, retry_rect)
   pygame.display.flip()
   dt = clock.tick(60) / 1000
