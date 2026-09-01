@@ -32,12 +32,18 @@ Evil whiteboards
 <img width="101" height="117" alt="image" src="https://github.com/user-attachments/assets/7f1299f5-94cd-44ca-9830-32a686089b03" />
 <br>
 Greek pastry known as "Tyropita"
+## How to run
+Either download V1.0 from the releases page or clone the repository and  run it using Python.
 
-## Features I want to have:
-1. Score / High score system [Working]
-2. Start Menu / Pause Menu [Working]
-3. SFX / Background Music [Working] (thx Nintendo)
-4. Power-ups [Not yet working]
+
+## Features:
+1. Score / High score system
+2. Settings menu
+3. 2 Unique levels
+4. Start Menu / Pause Menu 
+5. SFX / Background Music (thx Nintendo ad SEGA and Rovio)
+6. Shop upgrades
+7. Different item sprites
 
 ### This is the first time I'm attempting to actually make a game; Please have mercy! :')
 
