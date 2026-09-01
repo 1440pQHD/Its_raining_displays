@@ -7,11 +7,17 @@ pygame.init()
 SCREEN_WIDTH = 1200
 SCREEN_HEIGHT = 700
 
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+
+sfx_enabled = True
+music_enabled = True
+invert
+
 bottom_y = SCREEN_HEIGHT - 100
 
 btn_size = (220,70)
 
-
+pygame.display.set_caption("Raining Displays")
 
 #Importing assets section (memory go brr)
 idle_boy = [
@@ -71,7 +77,9 @@ start_btn = pygame.transform.scale(start_btn_original,Start_size)
 evils = []
 last_evil_spawn = pygame.time.get_ticks()
 
-
+menu_btn = pygame.image.load("menu.png").convert_alpha()
+menu_btn = pygame.transform.scale(menu_btn, (260, 90))
+menu_btn_rect = menu_btn.get_rect(center=(SCREEN_WIDTH // 2 + 210, SCREEN_HEIGHT // 2 + 170))
 
 
 
@@ -87,9 +95,9 @@ hurt = pygame.mixer.Sound("Hurt.wav")
 
 
 
-speed_btn_rect = speed_btn.get_rect(center = (SCREEN_WIDTH//4, bottom_y))
-jump_btn_rect =jump_btn.get_rect(center= (SCREEN_WIDTH//2, bottom_y))
-multiplier_btn_rect = multiplier_btn.get_rect(center= (3 *SCREEN_WIDTH//4, bottom_y))
+speed_btn_rect = speed_btn.get_rect(topleft=(130, 160))
+jump_btn_rect =jump_btn.get_rect(topleft=(130,300))
+multiplier_btn_rect = multiplier_btn.get_rect(topleft=(130,440))
 
 
 
@@ -210,7 +218,7 @@ def spawn_single_target():
   return{
     "x": random.randint(50, SCREEN_WIDTH-50),
     "y": 50,
-    "y_vel": 0,
+    "y_vel": random.uniform(0, 1),
     "sprite_idx": random.randint(0, len(target_sprites)-1) #used for storing which item image is spawned
   }
 
@@ -218,9 +226,9 @@ def spawn_single_target():
 
 def reset_game():
   global score, health, player_pos, move_speed, y_velocity, is_jumping
-  global target_x, target_y, target_y_velocity, game_over
-  global evil, last_evil_spawn, in_start, value, animation_timer
-  global current_target_sprite, is_new_highscore, highscore_message_until
+  global active_targets, game_over, current_level, paused
+  global evil, last_evil_spawn, in_start, in_shop, value, animation_timer
+  global is_new_highscore, highscore_message_until
   global start_menu_index, start_menu_timer, playing_track, banner_timer
   apply_upgrades()
   score=0
@@ -229,7 +237,7 @@ def reset_game():
   move_speed=0
   y_velocity=0
   is_jumping = False
-  target_count = 1 + (upgrades["spawn"]-1)//4
+  target_count = upgrades["spawn"]
   target_x = random.randint(50, SCREEN_WIDTH - 50)
   target_y = 50
   target_y_velocity = 0
@@ -238,6 +246,7 @@ def reset_game():
  
   last_evil_spawn = pygame.time.get_ticks()
   game_over=False
+  paused = False
   in_start = False
   in_shop = False
   is_new_highscore = False
@@ -248,9 +257,10 @@ def reset_game():
   banner_timer = 0
   
 def return_to_main_menu():
-  global in_start, game_over, in_shop, playing_track
+  global in_start, game_over, in_shop, playing_track, paused
   in_start = True
   game_over = False
+  paused = False
   in_shop = False
   playing_track=None
 
@@ -306,24 +316,21 @@ pygame.mixer.music.set_volume(0.3)
 pygame.mixer.music.play(loops=-1, start=0.0)
 playing_track = "start_m.mp3"
 
-speed_btn_rect= pygame.Rect(SCREEN_WIDTH//2 +150, 200,160,50)
-jump_btn_rect = pygame.Rect(SCREEN_WIDTH//2 + 150, 310, 160, 50)
-multiplier_btn_re= pygame.Rect(SCREEN_WIDTH//2+150,420,160,50)
+speed_btn_rect= pygame.Rect(860, 170, 200, 50)
+jump_btn_rect = pygame.Rect(860, 310, 200, 50)
+multiplier_btn_rect= pygame.Rect(860, 450, 200, 50)
 
 
 while running:
   start_btn_rect = start_btn.get_rect(
-    center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2+50)
+    center=(SCREEN_WIDTH//2 -120, SCREEN_HEIGHT//2+50)
   )
-  shop_btn_rect = pygame.Rect(
-    SCREEN_WIDTH//2+20, SCREEN_HEIGHT//2 +20, 200,60
-  )
+  shop_btn_rect = pygame.Rect(0, 0, 200, 60)
+  shop_btn_rect.center =(SCREEN_WIDTH//2 +120, SCREEN_HEIGHT//2+50)
   retry_rect = retry_button.get_rect(
-      center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT//2 + 50)
+      center=(SCREEN_WIDTH // 2 - 210, SCREEN_HEIGHT // 2 + 170)
   )
-  menu_rect = pygame.Rect(
-    SCREEN_WIDTH // 2 + 20, SCREEN_HEIGHT//2 +50, 200,60
-  )
+  menu_rect = menu_btn_rect.copy()
   if not paused and not game_over:
     current_time = pygame.time.get_ticks()
 
@@ -339,16 +346,25 @@ while running:
       ):
         paused = not paused
     if event.type == pygame.MOUSEBUTTONDOWN:
+
       if in_start and not in_shop:
         if start_btn_rect.collidepoint(event.pos):
           reset_game()
         elif shop_btn_rect.collidepoint(event.pos):
           in_shop = True
-
+      elif game_over:
+        if retry_rect.collidepoint(event.pos):
+          reset_game()
+        elif menu_rect.collidepoint(event.pos):
+          return_to_main_menu()
+      elif paused:
+        if menu_btn_rect.collidepoint(event.pos):
+          return_to_main_menu()
       elif in_shop:
         back_btn_rect = pygame.Rect(50,50,140,50)
         if back_btn_rect.collidepoint(event.pos):
           in_shop=False
+    
 
         
 
@@ -365,6 +381,7 @@ while running:
           cost = get_upgrade_cost(upgrades["jump"])
           if total_coins >= cost:
             total_coins -= cost
+            upgrades["jump"]+=1
             save_points(total_coins)
             save_upgrades()
             apply_upgrades()
@@ -373,6 +390,7 @@ while running:
           cost = get_upgrade_cost(upgrades["spawn"])
           if total_coins >= cost:
             total_coins -= cost
+            upgrades["spawn"]+=1
             save_points(total_coins)
             save_upgrades()
             apply_upgrades()
@@ -383,11 +401,17 @@ while running:
           return_to_main_menu()
 
   if in_shop:
+    if playing_track != "shop.mp3":
+          pygame.mixer.music.load("shop.mp3")
+          pygame.mixer.music.set_volume(0.3)
+          pygame.mixer.music.play(loops=1, start=0.0)
+          playing_track = "shop.mp3"
+
     display_buffer.fill((20,20,35))
     shop_title= font.render( "UPGRADES SHOP", True, (255,215,0)) #Gold because macondo
     coins_surf = font.render(f"Coins: {total_coins}", True, (255,255,255))
-    display_buffer.blit(shop_title, (SCREEN_WIDTH//2-160,40))
-    display_buffer.blit(coins_surf, (SCREEN_WIDTH-250,40))
+    display_buffer.blit(shop_title, (SCREEN_WIDTH//2-225,40))
+    display_buffer.blit(coins_surf, (SCREEN_WIDTH-450,660))
     
 
     back_btn = pygame.Rect(50,50,140,50)
@@ -395,34 +419,33 @@ while running:
     display_buffer.blit(font.render("BACK",True,(255,255,255)), (52,57))
 
     cards = [
-        ("Speed", "speed", 180, speed_btn, speed_btn_rect),
-        ("Jump Power", "jump", 310, jump_btn, jump_btn_rect),
-        ("Item Spawn", "spawn", 440, multiplier_btn, multiplier_btn_rect),
+        ("Speed", "speed", 140, speed_btn, speed_btn_rect),
+        ("Jump Power", "jump", 280, jump_btn, jump_btn_rect),
+        ("Item Spawn", "spawn", 420, multiplier_btn, multiplier_btn_rect),
       ]
 
     for label,key,y_pos,sprite_img,buy_rect in cards:
 
-      card_bg = pygame.Rect(150, y_pos, 900, 90)
+      card_bg = pygame.Rect(100, y_pos, 1000, 110)
       pygame.draw.rect(display_buffer, (35, 35, 55), card_bg, border_radius=12)
 
-      display_buffer.blit(sprite_img, (170, y_pos + 10))
+      display_buffer.blit(sprite_img, buy_rect.topleft)
 
       lvl = upgrades[key]
       cost = get_upgrade_cost(lvl)
 
-      txt = font.render(f"{label} (Lvl {lvl}/10)", True,(255,255,255))
-      display_buffer.blit(txt, (420, y_pos+25))
-
+      txt_label = font.render(label, True, (255,255,255))
+      text_lvl = font.render(f"{lvl}/10", True, (200,200,200))
+      display_buffer.blit(txt_label,(380, y_pos +15))
+      display_buffer.blit(text_lvl, (380, y_pos +48))
 
       if lvl >=10:
-        pygame.draw.rect(display_buffer, (80,80,80), buy_rect, border_radius=8)
-        btn_txt = small_font.render("MAXED", True, (128, 0, 32))
-        display_buffer.blit(btn_txt,(buy_rect.x + 45, buy_rect.y+14))
+        
+        txt_status = small_font.render("MAXED", True, (128, 0, 32))
+        
       else:
-        btn_color =((40,180,40) if total_coins >= cost else (100,100,100))
-        pygame.draw.rect(display_buffer, btn_color, buy_rect, border_radius=8 )
-        btn_text = small_font.render(f"Buy: {cost}C", True,(255,255,255))
-        display_buffer.blit(btn_text, (buy_rect.x + 20, buy_rect.y +13))
+        txt_status=small_font.render(f"{cost} Coins", True, (150,200,150))
+      display_buffer.blit(txt_status, (380, y_pos + 85))
 
     screen.blit(display_buffer, (0,0))
     pygame.display.flip()
@@ -463,7 +486,7 @@ while running:
     )
     display_buffer.blit(
       font.render("SHOP", True, (0,0,0)),
-      (shop_btn_rect.x + 55, shop_btn_rect.y +10),
+      (shop_btn_rect.x + 30, shop_btn_rect.y +10),
     )
 
 
@@ -510,185 +533,196 @@ while running:
 
  
       
+  if not paused and not game_over:
+    keys = pygame.key.get_pressed()
+
+    image = image_sprite[value]
+    image = pygame.transform.scale(image, (65, 70))
+    player_half_height = image.get_height() // 2
+
+    if (
+        keys[pygame.K_SPACE]
+        and not is_jumping
+        and player_pos.y >= (SCREEN_HEIGHT - player_half_height - 2) #Makes the player jump by changeing
+    ):
+      y_velocity = -jump_strength
+      jump.set_volume(0.5)
+      jump.play()
+      is_jumping = True
+
+    y_velocity += gravity
+    player_pos.y += y_velocity
+
+
+    if keys[pygame.K_a] and player_pos.x > radius:
+      move_speed -= acceleration * dt
+      moving = True
+    if keys[pygame.K_d] and player_pos.x < SCREEN_WIDTH - radius:
+      move_speed += acceleration * dt
+      moving = True
+
+    if not keys[pygame.K_a] and not keys[pygame.K_d]:
+      moving = False
+      if move_speed > 0:
+        move_speed = max(0, move_speed - friction * dt)
+      elif move_speed < 0:
+        move_speed = min(0, move_speed + friction * dt)
+
+    move_speed = max(-maxspeed, min(move_speed, maxspeed))
+    player_pos.x += move_speed * dt
     
-  keys = pygame.key.get_pressed()
+    if moving:
+      animation_timer += 1
+      if animation_timer >= 12:
+        value = (value + 1) % len(image_sprite)
+        animation_timer = 0
 
-  image = image_sprite[value]
-  image = pygame.transform.scale(image, (65, 70))
-  player_half_height = image.get_height() // 2
+    image_rect = image.get_rect(center=(int(player_pos.x), int(player_pos.y)))
+    player_rect = image_rect
 
-  if (
-      keys[pygame.K_SPACE]
-      and not is_jumping
-      and player_pos.y >= (SCREEN_HEIGHT - player_half_height - 2) #Makes the player jump by changeing
-  ):
-    y_velocity = -jump_strength
-    jump.set_volume(0.5)
-    jump.play()
-    is_jumping = True
+    if player_rect.left < 0:
+      player_pos.x = player_rect.width // 2
+      move_speed = max(0, move_speed)
+    elif player_rect.right > SCREEN_WIDTH:
+      player_pos.x = SCREEN_WIDTH - (player_rect.width // 2)
+      move_speed = min(0, move_speed)
 
-  y_velocity += gravity
-  player_pos.y += y_velocity
+    if player_rect.bottom >= SCREEN_HEIGHT:
+      player_pos.y = SCREEN_HEIGHT - player_half_height
+      y_velocity = 0
+      is_jumping = False
+    elif player_rect.top <= 0:
+      player_pos.y = player_half_height
+      y_velocity = max(y_velocity, 0)
 
-  target_y_velocity += target_gravity
-  target_y += target_y_velocity
+    for target in active_targets:
+      target["y_vel"] += target_gravity
+      target["y"] += target["y_vel"]
 
-  if keys[pygame.K_a] and player_pos.x > radius:
-    move_speed -= acceleration * dt
-    moving = True
-  if keys[pygame.K_d] and player_pos.x < SCREEN_WIDTH - radius:
-    move_speed += acceleration * dt
-    moving = True
+      if target["y"] + target_size >= SCREEN_HEIGHT:
+        target.update(spawn_single_target())
 
-  if not keys[pygame.K_a] and not keys[pygame.K_d]:
-    moving = False
-    if move_speed > 0:
-      move_speed = max(0, move_speed - friction * dt)
-    elif move_speed < 0:
-      move_speed = min(0, move_speed + friction * dt)
+      target_rect = pygame.Rect(target["x"], target["y"], target_size, target_size)
+      if player_rect.colliderect(target_rect):
+        trigger_shake(15, 5)
+        collect.set_volume(0.5)
+        collect.play()
+        score+=1
+        total_coins+=1
+        save_points(total_coins)
+        new_level = current_level
 
-  move_speed = max(-maxspeed, min(move_speed, maxspeed))
-  player_pos.x += move_speed * dt
-  
-  if moving:
-    animation_timer += 1
-    if animation_timer >= 12:
-      value = (value + 1) % len(image_sprite)
-      animation_timer = 0
+        if score>=20:
+          new_level=2
 
-  image_rect = image.get_rect(center=(int(player_pos.x), int(player_pos.y)))
-  player_rect = image_rect
+        if new_level>current_level:
+          current_level=new_level
+          banner_timer=pygame.time.get_ticks()
 
-  if player_rect.left < 0:
-    player_pos.x = player_rect.width // 2
-    move_speed = max(0, move_speed)
-  elif player_rect.right > SCREEN_WIDTH:
-    player_pos.x = SCREEN_WIDTH - (player_rect.width // 2)
-    move_speed = min(0, move_speed)
+        if score > high_score:
+          high_score=score
+          save_highscore(high_score)
+          is_new_highscore=True
+        target.update(spawn_single_target())
 
-  if player_rect.bottom >= SCREEN_HEIGHT:
-    player_pos.y = SCREEN_HEIGHT - player_half_height
-    y_velocity = 0
-    is_jumping = False
-  elif player_rect.top <= 0:
-    player_pos.y = player_half_height
-    y_velocity = max(y_velocity, 0)
+    for evil in evils[:]:
+      evil["y_vel"] += 0.4
+      evil["y"] += evil["y_vel"]
 
-  if target_y + target_size >= SCREEN_HEIGHT:
-  
-    trigger_shake(10, 4)
+      evil_rect = pygame.Rect(evil["x"], evil["y"], 80,80)
 
-    target_x = random.randint(50, SCREEN_WIDTH - 50)
-    target_y = 50
-    target_y_velocity = 0
-    
-    current_target_sprite = random.randint(0, len(target_sprites)-1)
+      if player_rect.colliderect(evil_rect):
+        hurt.set_volume(0.5)
+        hurt.play()
+        trigger_shake(12, 6)
+        health -= 1
+        evils.remove(evil)
+        if health <= 0:
+          health =0
+          game_over=True
+      elif evil["y"] >= SCREEN_HEIGHT:
+        evils.remove(evil)
 
-    if health <= 0:
-      health=0
-      game_over=True
-  elif target_y <= 0:
-    target_y=0
-    target_y_velocity = max(target_y_velocity, 0)
-  
-  
-
-  target_rect = pygame.Rect(target_x, target_y, target_size, target_size)
-
-  if player_rect.colliderect(target_rect):
-    trigger_shake(15,5)
-    collect.set_volume(0.5)
-    collect.play()
-    score += 1
-    total_coins +=1
-    save_points(total_coins)
-    new_level = current_level
-    if score>=20:
-      new_level=2
-
-    if new_level >current_level:
-      current_level = new_level
-      banner_timer = pygame.time.get_ticks()
-    
-    if score > high_score:
-      high_score = score
-      save_highscore(high_score) #Calling the save_highscore function to save current highscore to highscore.txt
-      is_new_highscore = True
 
 
     
-    target_y_velocity = 0
-    target_x = random.randint(50, SCREEN_WIDTH - 50)
-    target_y = 50
 
-  for evil in evils[:]:
-    evil["y_vel"] += 0.4
-    evil["y"] += evil["y_vel"]
+    if shake_timer > 0:
+      render_offset[0] = random.randint(-shake_intensity, shake_intensity)
+      render_offset[1] = random.randint(-shake_intensity, shake_intensity)
+      shake_timer -= 1
 
-    evil_rect = pygame.Rect(evil["x"], evil["y"], 80,80)
+    image = pygame.transform.scale(image_sprite[value], (65, 70))
+    image_rect = image.get_rect(center=(int(player_pos.x), int(player_pos.y)))
+    display_buffer.blit(image, image_rect)
 
-    if player_rect.colliderect(evil_rect):
-      hurt.set_volume(0.5)
-      hurt.play()
-      trigger_shake(12, 6)
-      health -= 1
-      evils.remove(evil)
-      if health <= 0:
-        health =0
-        game_over=True
-    elif evil["y"] >= SCREEN_HEIGHT:
-      evils.remove(evil)
+    for target in active_targets:
+      display_buffer.blit(
+        target_sprites[target["sprite_idx"]], (target["x"], target["y"])
+      )
 
+    for evil in evils:
+      display_buffer.blit(evil_img, (evil["x"], evil["y"]))
 
-
-  
-
-  if shake_timer > 0:
-    render_offset[0] = random.randint(-shake_intensity, shake_intensity)
-    render_offset[1] = random.randint(-shake_intensity, shake_intensity)
-    shake_timer -= 1
-
-  image = pygame.transform.scale(image_sprite[value], (65, 70))
-  image_rect = image.get_rect(center=(int(player_pos.x), int(player_pos.y)))
-  display_buffer.blit(image, image_rect)
-
-  display_buffer.blit(
-    target_sprites[current_target_sprite], (target_x,target_y)
-  )
-
-  for evil in evils:
-    display_buffer.blit(evil_img, (evil["x"], evil["y"]))
-
-  score_surface = font.render(f"Score: {score}", True, (0, 0, 0))
-  for i in range(3):
-    heart_x = SCREEN_WIDTH - 160 + (i *45)
-    heart_y=20
-    if i<health:
-      display_buffer.blit(heart_red, (heart_x, heart_y))
-    else:
-      display_buffer.blit(heart_grey,(heart_x,heart_y))
+    score_surface = font.render(f"Score: {score}", True, (0, 0, 0))
+    for i in range(3):
+      heart_x = SCREEN_WIDTH - 160 + (i *45)
+      heart_y=20
+      if i<health:
+        display_buffer.blit(heart_red, (heart_x, heart_y))
+      else:
+        display_buffer.blit(heart_grey,(heart_x,heart_y))
 
 
-  display_buffer.blit(score_surface, (20, 20))
+    display_buffer.blit(score_surface, (20, 20))
 
-  if banner_timer > 0:
-    elapsed = pygame.time.get_ticks() - banner_timer
-    if elapsed <= banner_duration:
-      if (elapsed//banner_flash_interval) % 2 == 0:
-        banner_rect = lvl_up_image.get_rect(center=(SCREEN_WIDTH//2, 180))
-        display_buffer.blit(lvl_up_image,banner_rect)
-    else:
-      banner_timer = 0 
+    if banner_timer > 0:
+      elapsed = pygame.time.get_ticks() - banner_timer
+      if elapsed <= banner_duration:
+        if (elapsed//banner_flash_interval) % 2 == 0:
+          banner_rect = lvl_up_image.get_rect(center=(SCREEN_WIDTH//2, 180))
+          display_buffer.blit(lvl_up_image,banner_rect)
+      else:
+        banner_timer = 0 
+      
     
-  
 
 
-  
+    
 
-  screen.blit(display_buffer, render_offset)
+    screen.blit(display_buffer, render_offset)
 
   if paused and not game_over:
-    
+    display_buffer.fill("purple")
+    if current_level == 1:
+      display_buffer.blit(bg_1, (0, 0))
+    elif current_level == 2:
+      display_buffer.blit(bg_2, (0, 0))
+
+    image = pygame.transform.scale(image_sprite[value], (65, 70))
+    image_rect = image.get_rect(center=(int(player_pos.x), int(player_pos.y)))
+    display_buffer.blit(image, image_rect)
+
+    for target in active_targets:
+      display_buffer.blit(
+        target_sprites[target["sprite_idx"]], (target["x"], target["y"])
+      )
+
+    for evil in evils:
+      display_buffer.blit(evil_img, (evil["x"], evil["y"]))
+
+    score_surface = font.render(f"Score: {score}", True, (0, 0, 0))
+    display_buffer.blit(score_surface, (20, 20))
+
+    for i in range(3):
+      heart_x = SCREEN_WIDTH - 160 + (i * 45)
+      if i < health:
+        display_buffer.blit(heart_red, (heart_x, 20))
+      else:
+        display_buffer.blit(heart_grey, (heart_x, 20))
+
+    screen.blit(display_buffer, (0, 0))
+
     overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 128))
     screen.blit(overlay, (0, 0))
@@ -700,7 +734,7 @@ while running:
         pause_surface,
         (
             SCREEN_WIDTH // 2 - pause_surface.get_width() // 2,
-            SCREEN_HEIGHT // 2 - 50,
+            SCREEN_HEIGHT // 2 - 70,
         ),
     )
     screen.blit(
@@ -710,8 +744,11 @@ while running:
             SCREEN_HEIGHT // 2 + 10,
         ),
     )
+    screen.blit(menu_btn, menu_btn_rect)
 
   if game_over:
+    screen.blit(display_buffer, (0, 0))
+
     overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 180))
     screen.blit(overlay, (0, 0))
@@ -748,6 +785,7 @@ while running:
         (SCREEN_WIDTH//2 - gameover_highscore_surf.get_width() // 2, SCREEN_HEIGHT//2+100),
       )
     screen.blit(retry_button, retry_rect)
+    screen.blit(menu_btn, menu_btn_rect)
   pygame.display.flip()
   dt = clock.tick(60) / 1000
 
